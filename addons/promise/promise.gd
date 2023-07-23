@@ -129,14 +129,6 @@ static func any(promises: Array[Promise]) -> Promise:
 							reject.call(PromiseAnyRejection.new(PROMISE_REJECTED, rejections))
 				)
 	)
-	
-	
-func on_settled(promise: Promise, on_resolved: Callable, on_rejected: Callable) -> void:
-	var result := (await promise.settled) as PromiseResult
-	if result.status == Status.RESOLVED:
-		on_resolved.call(result.payload)
-	else:
-		on_rejected.call(result.payload)
 
 
 class PromiseResult:
