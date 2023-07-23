@@ -1,4 +1,4 @@
-# Godot Promise - JS-like Promise implementation for Godot 4
+# GdPromise - JS-like Promise implementation for Godot 4
 
 In most use cases, Godot's signal handlers are enough for any asynchronous task that needs to be done in reaction to something.
 However, signal syntax can be quite elaborate and verbose in more complex situations and can be confusing to people new to Godot. 
