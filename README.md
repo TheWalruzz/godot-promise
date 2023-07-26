@@ -223,6 +223,7 @@ var result := await Promise.all(Promise.from_many([first_signal, second_signal])
 ```
 
 Note: promisified signals will never reject, since they do not implement any error handling by design.
+Note 2: If signal has more arguments than one, the resolved value will be an array of values. Also, signals without any arguments will resolve to null.
 
 # Unit tests
 This library uses gdUnit4 as the unit test framework, but it is not provided in this repo. In order to run the tests, it needs to be installed manually (more information here: https://mikeschulze.github.io/gdUnit4/first_steps/install/). After that, tests can be run from the editor.
