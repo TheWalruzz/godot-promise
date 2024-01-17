@@ -21,7 +21,7 @@ gdscript/warnings/exclude_addons=false
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/gdUnit4/plugin.cfg", "res://addons/promise/plugin.cfg")
+enabled=PackedStringArray("res://addons/gdUnit4/plugin.cfg")
 
 [filesystem]
 
@@ -29,4 +29,4 @@ import/blender/enabled=false
 
 [gdunit4]
 
-settings/test/test_root_folder="../../test"
+settings/test/test_lookup_folder="../../test"

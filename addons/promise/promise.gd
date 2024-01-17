@@ -15,6 +15,7 @@ signal rejected(reason: Rejection)
 
 ## Generic rejection reason
 const PROMISE_REJECTED := "Promise rejected"
+const PROMISE_ANY_EMPTY_ARRAY := "Promise.any() needs at least one Promise"
 
 
 var is_settled := false
@@ -88,6 +89,10 @@ static func from_many(input_signals: Array[Signal]) -> Array[Promise]:
 static func all(promises: Array[Promise]) -> Promise:
 	return Promise.new(
 		func(resolve: Callable, reject: Callable):
+			if promises.size() == 0:
+				resolve.call([])
+				return
+
 			var resolved_promises: Array[bool] = []
 			var results := []
 			results.resize(promises.size())
@@ -111,6 +116,10 @@ static func all(promises: Array[Promise]) -> Promise:
 static func any(promises: Array[Promise]) -> Promise:
 	return Promise.new(
 		func(resolve: Callable, reject: Callable):
+			if promises.size() == 0:
+				reject.call(PromiseAnyRejection.new(PROMISE_ANY_EMPTY_ARRAY, []))
+				return
+			
 			var rejected_promises: Array[bool] = []
 			var rejections: Array[Rejection] = []
 			rejections.resize(promises.size())

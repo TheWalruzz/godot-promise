@@ -214,6 +214,12 @@ func test_all_reject() -> void:
 	assert_object(result.payload).is_instanceof(Promise.Rejection).is_same(rejection2)
 	
 	
+func test_all_empty_array() -> void:
+	var result = await Promise.all([]).settled
+	assert_int(result.status).is_equal(Promise.Status.RESOLVED)
+	assert_array(result.payload).is_empty()
+	
+	
 func test_all_one_rejected() -> void:
 	var rejection := Promise.Rejection.new("test2")
 	var promise1 := Promise.new(
@@ -251,7 +257,15 @@ func test_any_resolve() -> void:
 	]).settled
 	assert_int(result.status).is_equal(Promise.Status.RESOLVED)
 	assert_str(result.payload).is_equal("quick")
-	
+
+
+func test_any_empty_array() -> void:
+	var result = await Promise.any([]).settled
+	assert_int(result.status).is_equal(Promise.Status.REJECTED)
+	assert_object(result.payload).is_instanceof(Promise.PromiseAnyRejection)
+	assert_str(result.payload.reason).is_equal(Promise.PROMISE_ANY_EMPTY_ARRAY)
+	assert_array(result.payload.group).is_empty()
+
 	
 func test_any_one_resolved() -> void:
 	var rejection := Promise.Rejection.new("test1")
