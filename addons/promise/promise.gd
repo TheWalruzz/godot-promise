@@ -1,3 +1,4 @@
+# GDPromise v2.0.0
 extends RefCounted
 class_name Promise
 
@@ -19,51 +20,80 @@ const PROMISE_ANY_EMPTY_ARRAY := "Promise.any() needs at least one Promise"
 
 
 var is_settled := false
+var last_result: PromiseResult = null
 
 
 func _init(callable: Callable):
 	resolved.connect(
-		func(value: Variant): 
-			is_settled = true
+		func(value: Variant):
 			settled.emit(PromiseResult.new(Status.RESOLVED, value)), 
 		CONNECT_ONE_SHOT
 	)
 	rejected.connect(
 		func(rejection: Rejection):
-			is_settled = true
 			settled.emit(PromiseResult.new(Status.REJECTED, rejection)), 
+		CONNECT_ONE_SHOT
+	)
+	settled.connect(
+		func(result: PromiseResult):
+			is_settled = true
+			last_result = result,
 		CONNECT_ONE_SHOT
 	)
 	
 	callable.call_deferred(
-		func(value: Variant):
+		func(value: Variant = null):
 			if not is_settled:
 				resolved.emit(value),
 		func(rejection: Rejection):
 			if not is_settled:
 				rejected.emit(rejection)
 	)
-
+	
+func wait() -> PromiseResult:
+	if is_settled:
+		return last_result
+	var result = await settled
+	return result
+	
 	
 func then(resolved_callback: Callable) -> Promise:
-	resolved.connect(
-		resolved_callback, 
-		CONNECT_ONE_SHOT
-	)
+	if is_settled and last_result and last_result.status == Promise.Status.RESOLVED:
+		resolved_callback.call(last_result.payload)
+	else:
+		resolved.connect(
+			resolved_callback, 
+			CONNECT_ONE_SHOT
+		)
 	return self
 	
 	
 func catch(rejected_callback: Callable) -> Promise:
-	rejected.connect(
-		rejected_callback, 
-		CONNECT_ONE_SHOT
-	)
+	if is_settled and last_result and last_result.status == Promise.Status.REJECTED:
+		rejected_callback.call(last_result.payload)
+	else:
+		rejected.connect(
+			rejected_callback, 
+			CONNECT_ONE_SHOT
+		)
 	return self
+
+
+static func resolve(value: Variant = null) -> Promise:
+	return Promise.new(func(resolve_func: Callable, _reject_func: Callable):
+		resolve_func.call(value)
+	)
+	
+	
+static func reject(value: Promise.Rejection) -> Promise:
+	return Promise.new(func(_resolve_func: Callable, reject_func: Callable):
+		reject_func.call(value)
+	)
 	
 	
 static func from(input_signal: Signal) -> Promise:
 	return Promise.new(
-		func(resolve: Callable, _reject: Callable):
+		func(resolve_func: Callable, _reject_func: Callable):
 			var number_of_args := input_signal.get_object().get_signal_list() \
 				.filter(func(signal_info: Dictionary) -> bool: return signal_info["name"] == input_signal.get_name()) \
 				.map(func(signal_info: Dictionary) -> int: return signal_info["args"].size()) \
@@ -71,11 +101,11 @@ static func from(input_signal: Signal) -> Promise:
 			
 			if number_of_args == 0:
 				await input_signal
-				resolve.call(null)
+				resolve_func.call(null)
 			else:
-				# only one arg in signal is allowed for now
+				# this will return either a value or an array of values
 				var result = await input_signal
-				resolve.call(result)
+				resolve_func.call(result)
 	)
 
 
@@ -88,9 +118,9 @@ static func from_many(input_signals: Array[Signal]) -> Array[Promise]:
 	
 static func all(promises: Array[Promise]) -> Promise:
 	return Promise.new(
-		func(resolve: Callable, reject: Callable):
+		func(resolve_func: Callable, reject_func: Callable):
 			if promises.size() == 0:
-				resolve.call([])
+				resolve_func.call([])
 				return
 
 			var resolved_promises: Array[bool] = []
@@ -104,20 +134,20 @@ static func all(promises: Array[Promise]) -> Promise:
 					func(value: Variant):
 						results[i] = value
 						resolved_promises[i] = true
-						if resolved_promises.all(func(value: bool): return value):
-							resolve.call(results)
+						if resolved_promises.all(func(is_resolved: bool): return is_resolved):
+							resolve_func.call(results)
 				).catch(
 					func(rejection: Rejection):
-						reject.call(rejection)
+						reject_func.call(rejection)
 				)
 	)
 	
 	
 static func any(promises: Array[Promise]) -> Promise:
 	return Promise.new(
-		func(resolve: Callable, reject: Callable):
+		func(resolve_func: Callable, reject_func: Callable):
 			if promises.size() == 0:
-				reject.call(PromiseAnyRejection.new(PROMISE_ANY_EMPTY_ARRAY, []))
+				reject_func.call(PromiseAnyRejection.new(PROMISE_ANY_EMPTY_ARRAY, []))
 				return
 			
 			var rejected_promises: Array[bool] = []
@@ -129,13 +159,13 @@ static func any(promises: Array[Promise]) -> Promise:
 			for i in promises.size():
 				promises[i].then(
 					func(value: Variant): 
-						resolve.call(value)
+						resolve_func.call(value)
 				).catch(
 					func(rejection: Rejection):
 						rejections[i] = rejection
 						rejected_promises[i] = true
 						if rejected_promises.all(func(value: bool): return value):
-							reject.call(PromiseAnyRejection.new(PROMISE_REJECTED, rejections))
+							reject_func.call(PromiseAnyRejection.new(PROMISE_REJECTED, rejections))
 				)
 	)
 

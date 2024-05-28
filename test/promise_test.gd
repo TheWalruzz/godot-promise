@@ -18,13 +18,16 @@ var wrapper: MockWrapper
 func before_test():
 	wrapper = spy(auto_free(MockWrapper.new()))
 	add_child(wrapper)
+	await get_tree().process_frame
 
 
 func test_init() -> void:
 	Promise.new(
-		func(_resolve: Callable, _reject: Callable):
+		func(resolve: Callable, _reject: Callable):
 			wrapper.function_with_no_params()
+			resolve.call(null)
 	)
+	await get_tree().process_frame
 	verify(wrapper, 1).function_with_no_params()
 	
 	
@@ -48,7 +51,6 @@ func test_then_async() -> void:
 		func(value: String):
 			wrapper.function_with_one_param(value)
 	)
-	await await_millis(110)
 	verify(wrapper, 1).function_with_one_param("test")
 	
 	
@@ -83,9 +85,19 @@ func test_await_syntax_resolve() -> void:
 		func(resolve: Callable, _reject: Callable):
 			resolve.call("test")
 	)
-	var result = await promise.settled
+	var result = await promise.wait()
 	assert_int(result.status).is_equal(Promise.Status.RESOLVED)
 	assert_str(result.payload).is_equal("test")
+	
+	
+func test_await_syntax_empty_resolve() -> void:
+	var promise := Promise.new(
+		func(resolve: Callable, _reject: Callable):
+			resolve.call()
+	)
+	var result = await promise.wait()
+	assert_int(result.status).is_equal(Promise.Status.RESOLVED)
+	assert_object(result.payload).is_equal(null)
 	
 	
 func test_await_syntax_resolve_async() -> void:
@@ -94,7 +106,7 @@ func test_await_syntax_resolve_async() -> void:
 			await await_millis(100)
 			resolve.call("test")
 	)
-	var result = await promise.settled
+	var result = await promise.wait()
 	assert_int(result.status).is_equal(Promise.Status.RESOLVED)
 	assert_str(result.payload).is_equal("test")
 	
@@ -105,7 +117,7 @@ func test_await_syntax_reject() -> void:
 		func(_resolve: Callable, reject: Callable):
 			reject.call(rejection)
 	)
-	var result = await promise.settled
+	var result = await promise.wait()
 	assert_int(result.status).is_equal(Promise.Status.REJECTED)
 	assert_object(result.payload).is_instanceof(Promise.Rejection).is_same(rejection)
 	
@@ -117,7 +129,7 @@ func test_await_syntax_reject_async() -> void:
 			await await_millis(100)
 			reject.call(rejection)
 	)
-	var result = await promise.settled
+	var result = await promise.wait()
 	assert_int(result.status).is_equal(Promise.Status.REJECTED)
 	assert_object(result.payload).is_instanceof(Promise.Rejection).is_same(rejection)
 	
@@ -127,7 +139,7 @@ func test_await_then() -> void:
 		func(resolve: Callable, _reject: Callable):
 			resolve.call("test")
 	)
-	await promise.then(func(value: String): wrapper.function_with_one_param(value)).settled
+	await promise.then(func(value: String): wrapper.function_with_one_param(value)).wait()
 	verify(wrapper, 1).function_with_one_param("test")
 	
 	
@@ -137,7 +149,7 @@ func test_await_then_async() -> void:
 			await await_millis(100)
 			resolve.call("test")
 	)
-	await promise.then(func(value: String): wrapper.function_with_one_param(value)).settled
+	await promise.then(func(value: String): wrapper.function_with_one_param(value)).wait()
 	verify(wrapper, 1).function_with_one_param("test")
 	
 	
@@ -147,7 +159,7 @@ func test_await_catch() -> void:
 		func(_resolve: Callable, reject: Callable):
 			reject.call(rejection)
 	)
-	await promise.catch(func(error: Promise.Rejection): wrapper.function_with_one_param(error)).settled
+	await promise.catch(func(error: Promise.Rejection): wrapper.function_with_one_param(error)).wait()
 	verify(wrapper, 1).function_with_one_param(rejection)
 	
 	
@@ -158,7 +170,7 @@ func test_await_catch_async() -> void:
 			await await_millis(100)
 			reject.call(rejection)
 	)
-	await promise.catch(func(error: Promise.Rejection): wrapper.function_with_one_param(error)).settled
+	await promise.catch(func(error: Promise.Rejection): wrapper.function_with_one_param(error)).wait()
 	verify(wrapper, 1).function_with_one_param(rejection)
 	
 	
@@ -188,7 +200,7 @@ func test_all_resolve() -> void:
 	var result = await Promise.all([
 		promise1,
 		promise2
-	]).settled
+	]).wait()
 	assert_int(result.status).is_equal(Promise.Status.RESOLVED)
 	assert_array(result.payload).has_size(2).contains_exactly(["slow", "quick"])
 	
@@ -209,13 +221,13 @@ func test_all_reject() -> void:
 	var result = await Promise.all([
 		promise1,
 		promise2
-	]).settled
+	]).wait()
 	assert_int(result.status).is_equal(Promise.Status.REJECTED)
 	assert_object(result.payload).is_instanceof(Promise.Rejection).is_same(rejection2)
 	
 	
 func test_all_empty_array() -> void:
-	var result = await Promise.all([]).settled
+	var result = await Promise.all([]).wait()
 	assert_int(result.status).is_equal(Promise.Status.RESOLVED)
 	assert_array(result.payload).is_empty()
 	
@@ -235,7 +247,7 @@ func test_all_one_rejected() -> void:
 	var result = await Promise.all([
 		promise1,
 		promise2
-	]).settled
+	]).wait()
 	assert_int(result.status).is_equal(Promise.Status.REJECTED)
 	assert_object(result.payload).is_instanceof(Promise.Rejection).is_same(rejection)
 	
@@ -254,13 +266,13 @@ func test_any_resolve() -> void:
 	var result = await Promise.any([
 		promise1,
 		promise2
-	]).settled
+	]).wait()
 	assert_int(result.status).is_equal(Promise.Status.RESOLVED)
 	assert_str(result.payload).is_equal("quick")
 
 
 func test_any_empty_array() -> void:
-	var result = await Promise.any([]).settled
+	var result = await Promise.any([]).wait()
 	assert_int(result.status).is_equal(Promise.Status.REJECTED)
 	assert_object(result.payload).is_instanceof(Promise.PromiseAnyRejection)
 	assert_str(result.payload.reason).is_equal(Promise.PROMISE_ANY_EMPTY_ARRAY)
@@ -282,7 +294,7 @@ func test_any_one_resolved() -> void:
 	var result = await Promise.any([
 		promise1,
 		promise2
-	]).settled
+	]).wait()
 	assert_int(result.status).is_equal(Promise.Status.RESOLVED)
 	assert_str(result.payload).is_equal("slow")
 	
@@ -303,10 +315,88 @@ func test_any_reject() -> void:
 	var result = await Promise.any([
 		promise1,
 		promise2
-	]).settled
+	]).wait()
 	assert_int(result.status).is_equal(Promise.Status.REJECTED)
 	assert_object(result.payload).is_instanceof(Promise.PromiseAnyRejection)
 	assert_array(result.payload.group).has_size(2).contains_exactly([rejection1, rejection2])
+	
+func test_memorization_resolve() -> void:
+	var promise := Promise.new(
+		func(resolve: Callable, _reject: Callable):
+			resolve.call("test")
+	)
+	var result = await promise.wait()
+	assert_int(result.status).is_equal(Promise.Status.RESOLVED)
+	assert_str(result.payload).is_equal("test")
+	var result2 = await promise.wait()
+	assert_int(result2.status).is_equal(Promise.Status.RESOLVED)
+	assert_str(result2.payload).is_equal("test")
+	
+	
+func test_memorization_reject() -> void:
+	var rejection := Promise.Rejection.new("test")
+	var promise := Promise.new(
+		func(_resolve: Callable, reject: Callable):
+			reject.call(rejection)
+	)
+	var result = await promise.wait()
+	assert_int(result.status).is_equal(Promise.Status.REJECTED)
+	assert_object(result.payload).is_instanceof(Promise.Rejection).is_same(rejection)
+	var result2 = await promise.wait()
+	assert_int(result2.status).is_equal(Promise.Status.REJECTED)
+	assert_object(result2.payload).is_instanceof(Promise.Rejection).is_same(rejection)
+	
+	
+func test_memorization_then() -> void:
+	var promise := Promise.new(
+		func(resolve: Callable, _reject: Callable):
+			resolve.call("test")
+	)
+	await promise.then(
+		func(value: String):
+			wrapper.function_with_one_param(value)
+	).wait()
+	verify(wrapper, 1).function_with_one_param("test")
+	await promise.then(
+		func(value: String):
+			wrapper.function_with_one_param(value)
+	).wait()
+	verify(wrapper, 2).function_with_one_param("test")
+	
+	
+func test_memorization_catch() -> void:
+	var rejection := Promise.Rejection.new("test")
+	var promise := Promise.new(
+		func(_resolve: Callable, reject: Callable):
+			reject.call(rejection)
+	)
+	await promise.catch(
+		func(value: Promise.Rejection):
+			wrapper.function_with_one_param(value)
+	).wait()
+	verify(wrapper, 1).function_with_one_param(rejection)
+	await promise.catch(
+		func(value: Promise.Rejection):
+			wrapper.function_with_one_param(value)
+	).wait()
+	verify(wrapper, 2).function_with_one_param(rejection)
+	
+	
+func test_resolve() -> void:
+	var result = await Promise.resolve("test").wait()
+	assert_str(result.payload).is_equal("test")
+	
+	
+func test_empty_resolve() -> void:
+	var result = await Promise.resolve().wait()
+	assert_object(result.payload).is_equal(null)
+	
+	
+func test_reject() -> void:
+	var rejection := Promise.Rejection.new("test")
+	var result = await Promise.reject(rejection).wait()
+	assert_int(result.status).is_equal(Promise.Status.REJECTED)
+	assert_object(result.payload).is_instanceof(Promise.Rejection).is_same(rejection)
 
 
 class MockWrapper extends Node:
