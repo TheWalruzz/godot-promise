@@ -110,10 +110,12 @@ static func from(input_signal: Signal) -> Promise:
 
 
 static func from_many(input_signals: Array[Signal]) -> Array[Promise]:
-	return input_signals.map(
+	var result: Array[Promise] = []
+	result.assign(input_signals.map(
 		func(input_signal: Signal): 
 			return Promise.from(input_signal)
-	)
+	))
+	return result
 
 	
 static func all(promises: Array[Promise]) -> Promise:
